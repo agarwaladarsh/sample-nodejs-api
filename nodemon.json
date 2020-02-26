@@ -1,0 +1,7 @@
+{
+  "watch": [
+    "api"
+  ],
+  "exec": "tsc && node dist/server.js",
+  "ext": "js, json, ts, proto"
+}
