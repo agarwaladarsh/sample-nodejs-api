@@ -3,5 +3,9 @@
  * */
 
 
-export const getaccount = '/getaccount';
-export const addaccount = '/addaccount';
+export const getaccount = '/api/getaccount';
+export const addaccount = '/api/addaccount';
+export const updateaccount = '/api/updateaccount';
+
+// File Ingestion Endpoints
+export const ingestmetadata = '/api/ingestmetadata';

@@ -1,0 +1,1 @@
+# Place middleware files in this directory / Write common middleware in the common.ts file

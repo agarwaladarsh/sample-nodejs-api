@@ -1,0 +1,102 @@
+openapi: 3.0.1
+info:
+  title: defaultTitle
+  description: defaultDescription
+  version: '0.1'
+servers:
+  - url: 'http://localhost:5000'
+paths:
+  /api/addaccount:
+    post:
+      description: Auto generated using Swagger Inspector
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                user_id:
+                  type: integer
+                email:
+                  type: string
+                username:
+                  type: string
+            examples:
+              '0':
+                value: "{\r\n  \"user_id\":5,\r\n  \"username\":\"test5\",\r\n  \"password\":\"test5\",\r\n  \"email\":\"test5@email.com\"\r\n}"
+      responses:
+        '200':
+          description: Auto generated using Swagger Inspector
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: string
+              examples: {}
+      servers:
+        - url: 'http://localhost:5000'
+    servers:
+      - url: 'http://localhost:5000'
+  /api/getaccount:
+    get:
+      description: Auto generated using Swagger Inspector
+      responses:
+        '200':
+          description: Auto generated using Swagger Inspector
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: string
+              examples: {}
+      servers:
+        - url: 'http://localhost:5000'
+    servers:
+      - url: 'http://localhost:5000'
+  /api/updateaccount:
+    post:
+      description: Auto generated using Swagger Inspector
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                user_id:
+                  type: integer
+                email:
+                  type: string
+                username:
+                  type: string
+            examples:
+              '0':
+                value: "{\r\n  \"user_id\":5,\r\n  \"username\":\"test51\",\r\n  \"password\":\"test51\",\r\n  \"email\":\"test51@email.com\"\r\n}"
+      responses:
+        '200':
+          description: Auto generated using Swagger Inspector
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: string
+              examples: {}
+      servers:
+        - url: 'http://localhost:5000'
+    servers:
+      - url: 'http://localhost:5000'
+  /:
+    get:
+      description: Auto generated using Swagger Inspector
+      responses:
+        '200':
+          description: Auto generated using Swagger Inspector
+          content:
+            text/html; charset=utf-8:
+              schema:
+                type: string
+              examples: {}
+      servers:
+        - url: 'http://localhost:5000'
+    servers:
+      - url: 'http://localhost:5000'

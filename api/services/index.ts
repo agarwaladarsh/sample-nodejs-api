@@ -1,3 +1,3 @@
-import routes from './ingestion';
+import routes from './service-handlers';
 
 export default [...routes];

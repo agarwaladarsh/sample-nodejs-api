@@ -23,7 +23,7 @@ export const sqlToDB = async (sql: string, data: string[][]) => {
 
 /**
  * Retrieve a SQL client with transaction from connection pool. If the client is valid, either
- * COMMMIT or ROALLBACK needs to be called at the end before releasing the connection back to pool.
+ * COMMIT or ROLLBACK needs to be called at the end before releasing the connection back to pool.
  */
 export const getTransaction = async () => {
     console.log(`getTransaction()`);

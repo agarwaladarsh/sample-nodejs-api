@@ -2,6 +2,6 @@
   "watch": [
     "api"
   ],
-  "exec": "tsc && node dist/server.js",
+  "exec": "tsc && npm run copyFiles && node dist/server.js",
   "ext": "js, json, ts, proto"
 }
