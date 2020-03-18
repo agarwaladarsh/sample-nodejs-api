@@ -6,29 +6,20 @@ info:
 servers:
   - url: 'http://localhost:5000'
 paths:
-  /api/addaccount:
+  /api/ingestmetadata:
     post:
-      description: Auto generated using Swagger Inspector
+      description: API Endpoint to ingest metadata json blob files, based on source and type
       requestBody:
         content:
           application/json:
             schema:
-              type: object
+              type: array
               properties:
-                password:
-                  type: string
-                user_id:
-                  type: integer
-                email:
-                  type: string
-                username:
-                  type: string
-            examples:
-              '0':
-                value: "{\r\n  \"user_id\":5,\r\n  \"username\":\"test5\",\r\n  \"password\":\"test5\",\r\n  \"email\":\"test5@email.com\"\r\n}"
+                blobs:
+                  type: array
       responses:
         '200':
-          description: Auto generated using Swagger Inspector
+          description: Successfully Ingested JSON metadata
           content:
             application/json; charset=utf-8:
               schema:
@@ -38,44 +29,12 @@ paths:
         - url: 'http://localhost:5000'
     servers:
       - url: 'http://localhost:5000'
-  /api/getaccount:
+  /api/querymetadata:
     get:
-      description: Auto generated using Swagger Inspector
+      description: API Endpoint to Query Metadata based on multiple filters
       responses:
         '200':
-          description: Auto generated using Swagger Inspector
-          content:
-            application/json; charset=utf-8:
-              schema:
-                type: string
-              examples: {}
-      servers:
-        - url: 'http://localhost:5000'
-    servers:
-      - url: 'http://localhost:5000'
-  /api/updateaccount:
-    post:
-      description: Auto generated using Swagger Inspector
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                password:
-                  type: string
-                user_id:
-                  type: integer
-                email:
-                  type: string
-                username:
-                  type: string
-            examples:
-              '0':
-                value: "{\r\n  \"user_id\":5,\r\n  \"username\":\"test51\",\r\n  \"password\":\"test51\",\r\n  \"email\":\"test51@email.com\"\r\n}"
-      responses:
-        '200':
-          description: Auto generated using Swagger Inspector
+          description: Metadata successfully queried
           content:
             application/json; charset=utf-8:
               schema:

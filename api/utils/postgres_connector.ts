@@ -11,8 +11,6 @@ console.log(`DB Connection Settings: ${JSON.stringify(dbconfig)}`);
  * @return result
  */
 export const sqlToDB = async (sql: string, data: string[][]) => {
-    console.log(`sqlToDB() sql: ${sql} | data: ${data}`);
-
     try {
         return pool.query(sql, data)
 
@@ -26,7 +24,6 @@ export const sqlToDB = async (sql: string, data: string[][]) => {
  * COMMIT or ROLLBACK needs to be called at the end before releasing the connection back to pool.
  */
 export const getTransaction = async () => {
-    console.log(`getTransaction()`);
     // @ts-ignore
     const client: pg.Client = await pool.connect();
     try {
