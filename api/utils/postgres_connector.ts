@@ -10,7 +10,7 @@ console.log(`DB Connection Settings: ${JSON.stringify(dbconfig)}`);
  * @param data: the data to be stored
  * @return result
  */
-export const sqlToDB = async (sql: string, data: string[][]) => {
+export const sqlToDB = async (sql: string, data: string[]) => {
     try {
         return pool.query(sql, data)
 

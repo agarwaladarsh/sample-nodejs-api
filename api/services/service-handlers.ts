@@ -2,115 +2,300 @@ import {Request, Response} from "express";
 import * as endpoints from './endpoints';
 import * as dbUtil from "../utils/postgres_connector";
 import * as queries from './queries';
-import * as formidable from 'formidable';
-import * as fs from 'fs';
-import path = require("path");
 import request = require("request");
 
-const appDir = path.dirname(require.main.filename);
+/**
+ * Interface and function for calls to dbUtil.sqlToDB()
+ * */
+interface sqlToDBParams {
+    query: string;
+    params?: string[];
+    callback?: Function;
+}
 
-/** Ingestion Execution Function - takes in json blob, checks if already present, updates if already present, adds if needed
- * @param data - json blob
+/**
+ * common function for executing queries on the database
+ * @param input - parameters for postgres utility function
  */
-const ingestionExecute = function (data: any) {
-// Initializing parameters for queries
-    const inputfilename = data['input_filename'] || data['filename'];
-
-    // check if blob contains 'result' key to decide the overall metadata to be stored
-    let generatortype = '';
-    let blob = data;
-    if (Object.keys(data).indexOf('result') >= 0) {
-        blob = data['result'][0];
-        if (Object.keys(blob).indexOf('predictions') < 0) {
-            generatortype = 'characterization';
-        } else {
-            generatortype = 'classification';
+const sqlToDB = function (input: sqlToDBParams) {
+    dbUtil.sqlToDB(input.query, input.params).then(
+        result => {
+            if (input.callback) input.callback(result);
         }
-    } else {
-        generatortype = 'transcription';
-    }
-
-    let version = 1;
-    if (Object.keys(data).indexOf('version') > 0) {
-        version = data['version'];
-    }
-
-    // Check for existing metadata for filename
-    dbUtil.sqlToDB(queries.queryjsonblob, [inputfilename, 'A', generatortype, version]).then(result => {
-        if (result['rows'].length > 0) {
-            // Update existing row
-            dbUtil.sqlToDB(queries.updatejsonblob, [inputfilename, 'A', generatortype, version, JSON.stringify(blob)]).then(result => {
-                console.log('Updated');
-            }).catch(err => {
-                throw new Error(err)
-            });
-        } else {
-            // Add new row
-            let params = [inputfilename, 'A', generatortype, JSON.stringify(blob), version];
-            dbUtil.sqlToDB(queries.ingestjsonblob, params).then(data => {
-                console.log('Ingested');
-            }).catch(err => {
-                throw new Error(err)
-            });
-        }
-    }).catch(err => {
+    ).catch(err => {
         throw new Error(err)
     });
 };
 
-/** ingestion Handler function - decides the kind of ingestion based on request type
+/**
+ * JSON cleanup function
+ * @param json - JSON object as a string
+ */
+const cleanUpJSON = function (json = "") {
+    let outputjson = json;
+    outputjson = outputjson.replace(/'/g, '"');
+    outputjson = outputjson.replace(/True/g, 'true');
+    outputjson = outputjson.replace(/None/g, 'false');
+    outputjson = outputjson.replace(/False/g, 'false');
+
+    return outputjson;
+};
+
+/**
+ * Initialization: Create psql function jsonb_deep_merge() for use in mergejsonblob()
+ * */
+sqlToDB({
+    query: queries.psql_init_functions
+});
+
+/**
+ * Ingestion Execution Function - takes in json blob, checks if already present, updates if already present, adds if needed
+ * @param data - json blob
+ * @param mediatype - audio/video
+ * @param generatortype
+ */
+const ingestionExecute = function (data: any,
+    mediatype: string,
+    generatortype: string = '') {
+
+    // Initializing parameters for queries
+    // Audio Defaults
+    let inputfilename = data['input_filename'] || data['filename'];
+    // Video Defaults
+    let jobdetails = {
+        'model_name': '',
+        'signedUrls': [''],
+        'jobID': ''
+    };
+    let blob = data;
+    if (mediatype === 'A') {
+        if (Object.keys(data).indexOf('result') >= 0) {
+            if (Object.keys(blob['result'][0]).indexOf('predictions') < 0) {
+                generatortype = 'characterization';
+                for (let obj of blob['result']) {
+                    obj['characterization'] =
+                        JSON.parse(cleanUpJSON(obj['characterization']));
+                }
+            } else {
+                generatortype = 'classification';
+            }
+        } else {
+            generatortype = 'transcription';
+        }
+
+
+    } else if (mediatype === 'V') {
+        inputfilename = '';
+        blob = data['output']; // Vulcan output
+        jobdetails = {
+            'model_name': data['model_name'],
+            'signedUrls': data['signedUrls'],
+            'jobID': data['jobID']
+        };
+    }
+
+    let version = '1.0';
+    if (Object.keys(data).indexOf('version') > 0) {
+        version = data['version'];
+    }
+
+    let query = queries.queryjsonblob;
+    let params = [inputfilename, mediatype, generatortype, version];
+
+    if (mediatype == 'V') {
+        query += 'and jobdetails->>\'jobID\' like $5';
+        params.push(jobdetails['jobID']);
+    }
+    // Check for existing metadata for filename
+    sqlToDB({
+        query: query,
+        params: params,
+        callback: (result: any) => {
+            if (result['rows'].length > 0) {
+                if (mediatype === 'A') {
+                    // Update existing row
+                    sqlToDB({
+                        query: queries.updatejsonblob,
+                        params: [inputfilename, mediatype, generatortype,
+                            version, JSON.stringify(blob)],
+                        callback: () => console.log(inputfilename, 'Audio Updated')
+                    });
+                } else if (mediatype === 'V') {
+                    // Update/Append (merge) JSON blob
+                    sqlToDB({
+                        query: queries.mergeJsonBlob,
+                        params: [inputfilename, mediatype, generatortype,
+                            version, JSON.stringify(blob)],
+                        callback: () => {
+                            console.log(inputfilename, 'Video Merged');
+                            sqlToDB({
+                                query: queries.updateMetaDetails,
+                                params: [mediatype, jobdetails['jobID'],
+                                    JSON.stringify(blob)],
+                                callback: () => console.log(inputfilename,
+                                    "Updated Class Frequency")
+                            });
+                        }
+                    });
+                }
+            } else {
+                // Add new row
+                sqlToDB({
+                    query: queries.ingestjsonblob,
+                    params: [inputfilename, mediatype, generatortype,
+                        JSON.stringify(blob), version,
+                        jobdetails],
+                    callback: () => {
+                        console.log(inputfilename, 'Ingested');
+                        if (mediatype === 'V') {
+                            sqlToDB({
+                                query: queries.updateMetaDetails,
+                                params: [mediatype, jobdetails['jobID'],
+                                    JSON.stringify(blob)],
+                                callback: () => console.log(inputfilename,
+                                    "Updated Class Frequency")
+                            });
+                        }
+                    }
+                });
+            }
+        }
+    });
+};
+
+/**
+ * Ingestion Handler function - decides the kind of ingestion based on request type
  * @param req - request object
  * @param res - response object
  */
 const ingestionHandler = async function (req: Request, res: Response) {
-// check for content type of request
+    console.log(req.url);
+    // Check for content type of request
     const headers = req.headers;
+    let reqbody = req.body;
+    let mediatype = reqbody['mediatype'];
+    let generatortype = reqbody['generatortype'];
+    if (mediatype == 'A') {
+        // Presigned URLs
+        if (headers['content-type'].includes('json') && Object.keys(reqbody)
+            .indexOf('blobs') >= 0) {
 
-    if (headers['content-type'].includes('json')) {
-        let reqbody = req.body;
-        let listURLs = reqbody['blobs'];
-
-        for (const b of listURLs) {
-            request(b, {json: true}, (err, resp, body) => {
-                if (err) return console.log(err);
-
-                ingestionExecute(body);
-
-            });
-        }
-    } else if (headers['content-type'].includes('form')) {
-        var form = new formidable.IncomingForm();
-        // form.uploadDir = this.directory;
-        form.keepExtensions = true;
-        form.type = 'multipart';
-
-        form.parse(req);
-
-        form.on('fileBegin', function (name, file) {
-            file.path = appDir + '/uploads/' + file.name;
-        });
-
-        form.on('file', function (name, file) {
-            console.log('Uploaded ' + file.name);
-
-            const filepath = appDir + '/uploads/' + file.name;
-            // @ts-ignore
-            const data = JSON.parse(fs.readFileSync(filepath));
-
-            ingestionExecute(data);
-
-            fs.stat(filepath, function (err, stats) {
-                if (err) return console.log(err);
-
-                fs.unlink(filepath, function (err) {
+            // List of Pre-signed URLs
+            let listURLs = reqbody['blobs'];
+            for (const b of listURLs) {
+                request(b, {json: true}, (err, resp, body) => {
                     if (err) return console.log(err);
-                    console.log('file deleted successfully');
+                    ingestionExecute(body, mediatype, generatortype);
                 });
-            });
-        });
+            }
+        } else {
+            // Pure JSON
+            ingestionExecute(reqbody, mediatype, generatortype);
+        }
+        // else if (headers['content-type'].includes('form')) {
+        //     let files = req.files;
+        //     Object.keys(files).forEach(key => {
+        //         let file = files[key];
+        //         // @ts-ignore
+        //         const data = JSON.parse(file['data']);
+        //         ingestionExecute(data, mediatype, generatortype);
+        //     });
+        // }
+    } else if (mediatype == 'V') {
+        // Pure JSON
+        if (headers['content-type'].includes('json')) {
+            ingestionExecute(reqbody, mediatype, generatortype);
+        }
+    }
+    res.status(200).json({message: 'success'});
+};
+
+/**
+ * Query Function for audio metadata
+ * @param res - Response Object
+ * @param queryParams
+ */
+const audioQueryExecute = function (res: Response, queryParams: any = {}) {
+
+    let query = queries.genericAudioMetadataQuery;
+    let params = [queryParams['mediatype'], queryParams['generatortype'],
+        queryParams['version'] || '1.0'];
+    if (Object.keys(queryParams).indexOf('filename') >= 0) {
+        query += 'and inputfilename like concat(\'%\',$4::text, \'%\')';
+        params.push(queryParams['filename']);
     }
 
-    res.status(200).json({message: 'success'});
+    sqlToDB({
+        query: query,
+        params: params,
+        callback: (data: any) => {
+            let result = data.rows;
+            res.status(200).json({message: result});
+        }
+    });
+};
+
+/**
+ * Query Function for video metadata
+ * @param res - Response Object
+ * @param mediatype - mediatype - 'V'
+ * @param jobID - E.g. - '4326d86'
+ * @param generatortype - E.g. - 'squeezenet'
+ * @param model_name - E.g. - 'squeezeNet_deeperDSSD_face_TFv1.8_296x296_01162019'
+ * @param classnum - E.g. - 1
+ */
+const videoQueryExecute = function (res: Response, mediatype: string,
+    jobID: string = undefined,
+    generatortype: string = '', model_name: string = '', classnum: number = -1) {
+    let query = [queries.videoQueryForJobID, queries.videoQueryByJobID];
+    let params = [mediatype];
+    let queryIdx = 0;
+    console.log(jobID, generatortype, model_name, classnum);
+    if (jobID !== undefined) {
+        queryIdx = 1;
+        params.push(jobID);
+    } else if (generatortype !== '') {
+        query[queryIdx] += 'and generatortype like $2';
+        params.push(generatortype);
+    } else if (classnum != -1) {
+        query[queryIdx] += `and metadatadetails->$2 is not null`;
+        params.push(classnum.toString());
+    } else if (model_name !== '') {
+        query[queryIdx] += 'and jobdetails->>\'model_name\' like $2';
+        params.push(model_name);
+    }
+
+    sqlToDB({
+        query: query[queryIdx],
+        params: params,
+        callback: (data: any) => {
+            let result = data.rows;
+            res.status(200).json({message: result});
+        }
+    });
+};
+
+/**
+ * Query Handler - Decides the query execute function to call based on mediatype
+ * @param req - request object
+ * @param res - response object
+ */
+const queryHandler = async function (req: Request, res: Response) {
+    console.log(req.url);
+    let queryparams = req.query;
+    let mediatype = '';
+    if (req.params['mediatype'] === 'audio') {
+        queryparams['mediatype'] = 'A';
+        audioQueryExecute(res, queryparams);
+    } else if (req.params['mediatype'] === 'video') {
+        mediatype = 'V';
+        const generatortype = queryparams['generatortype'];
+        const model_name = queryparams['model_name'];
+        const classnum = queryparams['classnum'];
+        const jobID = req.params['jobID'];
+        videoQueryExecute(res, mediatype, jobID, generatortype, model_name,
+            classnum);
+    }
 };
 
 export default [
@@ -118,48 +303,7 @@ export default [
         path: "/",
         method: "get",
         handler: async (req: Request, res: Response) => {
-            res.send("Hello world !");
-        }
-    },
-    {
-        path: endpoints.getaccount,
-        method: 'get',
-        handler: async (req: Request, res: Response) => {
-            dbUtil.sqlToDB(queries.getaccounts, []).then(data => {
-                let result = data.rows;
-                res.status(200).json({message: result});
-            }).catch(err => {
-                throw new Error(err)
-            });
-        }
-    },
-    {
-        path: endpoints.addaccount,
-        method: 'post',
-        handler: async (req: Request, res: Response) => {
-            let reqbody = req.body;
-            let params = [reqbody['username'], reqbody['password'], reqbody['email']];
-            dbUtil.sqlToDB(queries.addaccount, params).then(data => {
-                let result = data.rows;
-                res.status(200).json({message: result});
-            }).catch(err => {
-                throw new Error(err)
-            });
-        }
-    },
-    {
-        path: endpoints.updateaccount,
-        method: 'post',
-        handler: async (req: Request, res: Response) => {
-            let reqbody = req.body;
-            console.log(reqbody);
-            let params = [reqbody['user_id'], reqbody['username'], reqbody['password'], reqbody['email']];
-            dbUtil.sqlToDB(queries.updateaccount, params).then(data => {
-                let result = data.rows;
-                res.status(200).json({message: result});
-            }).catch(err => {
-                throw new Error(err)
-            });
+            res.send("Blank Sample URL");
         }
     },
     {
@@ -170,13 +314,11 @@ export default [
     {
         path: endpoints.querymetadata,
         method: 'get',
-        handler: async (req: Request, res: Response) => {
-            dbUtil.sqlToDB(queries.genericAudioMetadataQuery, []).then(data => {
-                let result = data.rows;
-                res.status(200).json({message: result});
-            }).catch(err => {
-                throw new Error(err)
-            });
-        }
+        handler: queryHandler
+    },
+    {
+        path: endpoints.queryjobid,
+        method: 'get',
+        handler: queryHandler
     }
 ];
