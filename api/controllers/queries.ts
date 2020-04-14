@@ -4,36 +4,34 @@
 
 /***** Generic Queries *****/
 export const ingestjsonblob = `
-    insert into aggregated_metadata 
-    values 
-    (default, $1, $2, $3, $4, $5, $6, '{}', current_timestamp)
+    insert into aggregated_metadata
+    values (default, $1, $2, $3, $4, $5, $6, '{}', current_timestamp)
 `;
 export const queryjsonblob = `
-    select * from aggregated_metadata 
-    where 
-    inputfilename like $1 and 
-    inputtype like $2 and 
-    generatortype like $3 and 
-    version = $4
+    select *
+    from aggregated_metadata
+    where inputfilename like $1
+      and inputtype like $2
+      and generatortype like $3
+      and version = $4
 `;
 
 
 /***** Audio-Specific Queries *****/
 export const updatejsonblob = `
-    update aggregated_metadata 
-    set metadata = $5 
-    where 
-    inputfilename like $1 and 
-    inputtype like $2 and 
-    generatortype like $3 and 
-    version = $4
+    update aggregated_metadata
+    set metadata = $5
+    where inputfilename like $1
+      and inputtype like $2
+      and generatortype like $3
+      and version = $4
 `;
 export const genericAudioMetadataQuery = `
-    select * from aggregated_metadata
-    where
-    inputtype like concat('%', $1::text, '%') and
-    generatortype like concat('%', $2::text, '%') and 
-    version like concat('%', $3::text, '%')
+    select *
+    from aggregated_metadata
+    where inputtype like concat('%', $1::text, '%')
+      and generatortype like concat('%', $2::text, '%')
+      and version like concat('%', $3::text, '%')
 `;
 
 /***** Video-Specific Queries *****/
@@ -42,28 +40,26 @@ export const updateMetaDetails = `
 `;
 // Video version of updatejsonblob()
 export const mergeJsonBlob = `
-    update aggregated_metadata 
+    update aggregated_metadata
     set metadata = jsonb_deep_merge(metadata, $5::jsonb)
-    where 
-    inputfilename like $1 and 
-    inputtype like $2 and 
-    generatortype like $3 and 
-    version = $4
+    where inputfilename like $1
+      and inputtype like $2
+      and generatortype like $3
+      and version = $4
 `;
 // Return jobIDs by either generatortype, model_name, or classnum
 // jobIDs accessed by results[0].jobids
 export const videoQueryForJobID = `
-    select coalesce(jsonb_agg(jobdetails->'jobID'), '[]'::jsonb) as jobIDs
+    select coalesce(jsonb_agg(jobdetails -> 'jobID'), '[]'::jsonb) as jobIDs
     from aggregated_metadata
-    where 
-    inputtype like $1
+    where inputtype like $1
 `;
 // Return entire row entries by jobID
 export const videoQueryByJobID = `
-    select * from aggregated_metadata
-    where 
-    inputtype like $1 and
-    jobdetails->>'jobID' like $2
+    select *
+    from aggregated_metadata
+    where inputtype like $1
+      and jobdetails ->> 'jobID' like $2
 `;
 export const psql_init_functions = `
     /*
@@ -133,7 +129,8 @@ export const psql_init_functions = `
 // `
 
 export const queryAudioJSONArray = `
-select *
-from aggregated_metadata am, jsonb_array_elements(am.metadata -> 'result') obj
-where (obj -> 'characterization' -> 'is_stereo')::boolean = true;
+    select *
+    from aggregated_metadata am,
+         jsonb_array_elements(am.metadata -> 'result') obj
+    where (obj -> 'characterization' -> 'is_stereo')::boolean = true;
 `;

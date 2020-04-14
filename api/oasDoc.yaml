@@ -1,61 +1,140 @@
 openapi: 3.0.1
 info:
-  title: defaultTitle
-  description: defaultDescription
+  title: Analytics Aggregator APIs
+  description: Ingestion API - to ingest audio metadata through pre-signed URLs/JSON<br>Query API - to query existing metadata with set of filters
   version: '0.1'
 servers:
   - url: 'http://localhost:5000'
 paths:
   /api/ingestmetadata:
     post:
-      description: API Endpoint to ingest metadata json blob files, based on source and type
+      description: |
+        Ingest metadata through a list of pre-signed URLs or a JSON output from a generator<br>If using pre-signed URLs - provide mediatype and
+        blobs (list of URLs)<br>If using JSON output from a generator - that JSON output must be the request body
+      summary: Ingestion API
+      x-swagger-router-controller: apiRoutes
+      operationId: ingestionRoute
       requestBody:
         content:
           application/json:
             schema:
-              type: array
-              properties:
-                blobs:
-                  type: array
-      responses:
-        '200':
-          description: Successfully Ingested JSON metadata
-          content:
-            application/json; charset=utf-8:
-              schema:
-                type: string
-              examples: {}
-      servers:
-        - url: 'http://localhost:5000'
-    servers:
-      - url: 'http://localhost:5000'
-  /api/querymetadata:
-    get:
-      description: API Endpoint to Query Metadata based on multiple filters
-      responses:
-        '200':
-          description: Metadata successfully queried
-          content:
-            application/json; charset=utf-8:
-              schema:
-                type: string
-              examples: {}
-      servers:
-        - url: 'http://localhost:5000'
-    servers:
-      - url: 'http://localhost:5000'
-  /:
-    get:
-      description: Auto generated using Swagger Inspector
+              $ref: '#/components/schemas/Ingestion'
+            example:
+              '0':
+                value: |-
+                  {
+                  "mediatype": "A",
+                  "blobs":[
+                      "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2017_260_00_00_GMT_trunk_gateway_fxo_8_5_6246405270325927.json?st=2020-04-10T23%3A41%3A01Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=Vy2jcrUsKXHXo2gblXVgf%2BDzD8yd%2FBaUeOSn2mtJRL8%3D",
+                      "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2019_05_04_00_00_49_Ch32.json?st=2020-04-10T23%3A41%3A45Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=uKGJkUBhiP3likDr8L7XknAqSj0g3KRbt5DngNzsMr4%3D",
+                      "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/clip2.json?st=2020-04-10T23%3A42%3A04Z&se=2020-04-30T23%3A42%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=WbE9DWssifU%2FShfrP%2Ff5OOfbbAiRK2hpiSx%2Bjtjf9YI%3D",
+                      ]
+                  }
       responses:
         '200':
           description: Auto generated using Swagger Inspector
           content:
-            text/html; charset=utf-8:
+            application/json:
               schema:
-                type: string
-              examples: {}
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Success'
       servers:
         - url: 'http://localhost:5000'
     servers:
       - url: 'http://localhost:5000'
+  /api/querymetadata/audio:
+    get:
+      description: Query API for aggregated metadata<br>Path /audio for audio queries<br>Path /video for video queries<br>Important Query Parameters - generatortype<br>Optional Query Parameters - Version
+      summary: Query API - Audio Metadata
+      x-swagger-router-controller: apiRoutes
+      operationId: queryRoute
+      parameters:
+        - name: generatortype
+          in: query
+          required: true
+          schema:
+            type: string
+          example: classification/transcription/characterization
+        - name: version
+          in: query
+          schema:
+            type: string
+          example: 1.0
+      responses:
+        '200':
+          description: Auto generated using Swagger Inspector
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Success'
+      servers:
+        - url: 'http://localhost:5000'
+    servers:
+      - url: 'http://localhost:5000'
+  /api/querymetadata/video:
+    get:
+      description: Query API for aggregated metadata<br>Path /audio for audio queries<br>Path /video for video queries<br>Important Query Parameters - generatortype<br>Optional Query Parameters - Version
+      summary: Query API - Video Metadata
+      x-swagger-router-controller: apiRoutes
+      operationId: queryRoute
+      parameters:
+        - name: generatortype
+          in: query
+          required: true
+          schema:
+            type: string
+          example: classification/transcription/characterization
+        - name: version
+          in: query
+          schema:
+            type: string
+          example: 1.0
+      responses:
+        '200':
+          description: Auto generated using Swagger Inspector
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Success'
+      servers:
+        - url: 'http://localhost:5000'
+    servers:
+      - url: 'http://localhost:5000'
+components:
+  schemas:
+    Success:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    Ingestion:
+      type: object
+      properties:
+        blobs:
+          type: array
+          items:
+            type: string
+        mediatype:
+          type: string
+      required:
+        - mediatype

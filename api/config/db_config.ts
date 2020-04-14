@@ -4,5 +4,6 @@ export const dbconfig = {
     database: process.env.API_DATABASE,
     password: process.env.API_DB_PASSWORD,
     host: process.env.API_HOST,
-    port: parseInt(process.env.API_PORT)
+    port: parseInt(process.env.API_PORT),
+    ssl: (process.env.API_SSLMODE == 'true')
 };

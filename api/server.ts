@@ -1,14 +1,14 @@
 import * as http from 'http';
 import express = require('express');
-import {applyMiddleware, applyRoutes} from './utils';
+import {applyMiddleware} from './utils';
 import middleware from './middleware';
-import routes from './services';
 import path = require('path');
 
 // OpenAPI Schema
 import fs = require('fs');
 import jsyaml = require('js-yaml');
 import fileUpload = require('express-fileupload');
+
 let oasTools = require('oas-tools');
 
 process.on('uncaughtException', e => {
@@ -25,11 +25,9 @@ let swaggerDocPath = path.join(__dirname, 'oasDoc.yaml');
 let spec = fs.readFileSync(swaggerDocPath, 'utf8');
 let oasDoc = jsyaml.safeLoad(spec);
 var options_object = {
-    controllers: '',
-    checkControllers: false,
+    controllers: `${__dirname}/routes`,
+    checkControllers: true,
     strict: false,
-    router: true,
-    validator: true,
     docs: {
         apiDocs: '/api-docs',
         apiDocsPrefix: '',
@@ -50,14 +48,28 @@ const port = 5000;
 router.use(fileUpload({
     createParentPath: true
 }));
-// oasTools.initialize(oasDoc, router, () => { // oas-tools version
-applyMiddleware(middleware, router);
-applyRoutes(routes, router);
-const server = http.createServer(router);
-server.listen(port, () => {
-    let addr = server.address();
-    let bind = (typeof addr === 'string') ? `pipe ${addr}` : `port ${addr.port}`;
-    console.log(`Listening on ${bind}`);
+
+router.use(express.json());
+
+// @ts-ignore
+router.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+    res.status(statusCode).json({
+        error: {
+            name: err.name,
+            message: err.message,
+            data: err.data,
+        },
+    });
 });
-// });
+
+oasTools.initialize(oasDoc, router, () => { // oas-tools version
+    applyMiddleware(middleware, router);
+    const server = http.createServer(router);
+    server.listen(port, () => {
+        let addr = server.address();
+        let bind = (typeof addr === 'string') ? `pipe ${addr}` : `port ${addr.port}`;
+        console.log(`Listening on ${bind}`);
+    });
+});
 
