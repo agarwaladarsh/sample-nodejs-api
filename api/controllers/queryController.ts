@@ -22,7 +22,7 @@ const audioQueryExecute = function (res: Response, queryParams: any = {}) {
         params: params,
         callback: (data: any) => {
             let result = data.rows;
-            res.status(200).send({message: result});
+            res.status(200).send({message: 'success', response: result});
         }
     });
 };
@@ -62,7 +62,7 @@ const videoQueryExecute = function (res: Response, mediatype: string,
         params: params,
         callback: (data: any) => {
             let result = data.rows;
-            res.status(200).send({message: result});
+            res.status(200).send({message: 'success', response: result});
         }
     });
 };
@@ -76,7 +76,7 @@ const queryHandler = async function (req: Request, res: Response) {
     console.log(req.url);
     let queryparams = req.query;
     let mediatype = '';
-    if (req.params['mediatype'] === 'audio') {
+    if (req.params['mediatype'].toLowerCase() === 'audio' || req.params['mediatype'].toLowerCase() === 'a') {
         queryparams['mediatype'] = 'A';
         audioQueryExecute(res, queryparams);
     } else if (req.params['mediatype'] === 'video') {

@@ -25,6 +25,20 @@ dbUtil.queryDB({
 });
 
 /**
+ * Ingestion File Resolver Class for file names and actions
+ */
+class IngestionResolve {
+    public filename: string;
+    public file_action: string;
+
+    constructor(filename: string, file_action: string) {
+        this.filename = filename;
+        this.file_action = file_action;
+    }
+
+}
+
+/**
  * Ingestion Execution Function - takes in json blob, checks if already present, updates if already present, adds if needed
  * @param data - json blob
  * @param mediatype - audio/video
@@ -32,7 +46,7 @@ dbUtil.queryDB({
  */
 const ingestionExecute = function (data: any,
     mediatype: string,
-    generatortype: string = '') {
+    generatortype: string = ''): Promise<IngestionResolve> {
 
     // Initializing parameters for queries
     // Audio Defaults
@@ -70,10 +84,7 @@ const ingestionExecute = function (data: any,
         };
     }
 
-    let version = '1.0';
-    if (Object.keys(data).indexOf('version') > 0) {
-        version = data['version'];
-    }
+    let version = data['version'] || '1.0';
 
     let query = queries.queryjsonblob;
     let params = [inputfilename, mediatype, generatortype, version];
@@ -83,60 +94,71 @@ const ingestionExecute = function (data: any,
         params.push(jobdetails['jobID']);
     }
     // Check for existing metadata for filename
-    dbUtil.queryDB({
-        query: query,
-        params: params,
-        callback: (result: any) => {
-            if (result['rows'].length > 0) {
-                if (mediatype === 'A') {
-                    // Update existing row
+
+    return new Promise<IngestionResolve>((resolve, reject) => {
+        dbUtil.queryDB({
+            query: query,
+            params: params,
+            callback: (result: any) => {
+                if (result['rows'].length > 0) {
+                    if (mediatype === 'A') {
+                        // Update existing row
+                        dbUtil.queryDB({
+                            query: queries.updatejsonblob,
+                            params: [inputfilename, mediatype, generatortype,
+                                version, JSON.stringify(blob)],
+                            callback: () => {
+                                resolve({filename: inputfilename, file_action: 'updated'});
+                                console.log(inputfilename, 'Audio Updated');
+                            }
+                        });
+                    } else if (mediatype === 'V') {
+                        // Update/Append (merge) JSON blob
+                        dbUtil.queryDB({
+                            query: queries.mergeJsonBlob,
+                            params: [inputfilename, mediatype, generatortype,
+                                version, JSON.stringify(blob)],
+                            callback: () => {
+                                console.log(inputfilename, 'Video Merged');
+                                dbUtil.queryDB({
+                                    query: queries.updateMetaDetails,
+                                    params: [mediatype, jobdetails['jobID'],
+                                        JSON.stringify(blob)],
+                                    callback: () => {
+                                        resolve({filename: inputfilename, file_action: 'updated'});
+                                        console.log(inputfilename,
+                                            "Updated Class Frequency");
+                                    }
+                                });
+                            }
+                        });
+                    }
+                } else {
+                    // Add new row
                     dbUtil.queryDB({
-                        query: queries.updatejsonblob,
+                        query: queries.ingestjsonblob,
                         params: [inputfilename, mediatype, generatortype,
-                            version, JSON.stringify(blob)],
-                        callback: () => console.log(inputfilename, 'Audio Updated')
-                    });
-                } else if (mediatype === 'V') {
-                    // Update/Append (merge) JSON blob
-                    dbUtil.queryDB({
-                        query: queries.mergeJsonBlob,
-                        params: [inputfilename, mediatype, generatortype,
-                            version, JSON.stringify(blob)],
+                            JSON.stringify(blob), version,
+                            jobdetails],
                         callback: () => {
-                            console.log(inputfilename, 'Video Merged');
-                            dbUtil.queryDB({
-                                query: queries.updateMetaDetails,
-                                params: [mediatype, jobdetails['jobID'],
-                                    JSON.stringify(blob)],
-                                callback: () => console.log(inputfilename,
-                                    "Updated Class Frequency")
-                            });
+                            console.log(inputfilename, 'Ingested');
+                            resolve({filename: inputfilename, file_action: 'ingested'});
+                            if (mediatype === 'V') {
+                                dbUtil.queryDB({
+                                    query: queries.updateMetaDetails,
+                                    params: [mediatype, jobdetails['jobID'],
+                                        JSON.stringify(blob)],
+                                    callback: () => console.log(inputfilename,
+                                        "Updated Class Frequency")
+                                });
+                            }
                         }
                     });
                 }
-            } else {
-                // Add new row
-                dbUtil.queryDB({
-                    query: queries.ingestjsonblob,
-                    params: [inputfilename, mediatype, generatortype,
-                        JSON.stringify(blob), version,
-                        jobdetails],
-                    callback: () => {
-                        console.log(inputfilename, 'Ingested');
-                        if (mediatype === 'V') {
-                            dbUtil.queryDB({
-                                query: queries.updateMetaDetails,
-                                params: [mediatype, jobdetails['jobID'],
-                                    JSON.stringify(blob)],
-                                callback: () => console.log(inputfilename,
-                                    "Updated Class Frequency")
-                            });
-                        }
-                    }
-                });
             }
-        }
+        });
     });
+
 };
 
 /**
@@ -145,45 +167,66 @@ const ingestionExecute = function (data: any,
  * @param res - response object
  */
 const ingestionHandler = async function (req: Request, res: Response) {
-    console.log(req.url);
     // Check for content type of request
     const headers = req.headers;
-    let reqbody = req.body;
-    let mediatype = reqbody['mediatype'];
-    let generatortype = reqbody['generatortype'];
-    if (mediatype == 'A') {
-        // Presigned URLs
-        if (headers['content-type'].includes('json') && Object.keys(reqbody)
-            .indexOf('blobs') >= 0) {
 
+    if (headers['content-type'].includes('json')) {
+        // Validation
+        let reqbody = req.body;
+        if (!reqbody['mediatype']) {
+            return res.status(400).send({message: 'Missing Key \'mediatype\''});
+        }
+        if (!reqbody['generatortype']) {
+            return res.status(400).send({message: 'Missing Key \'generatortype\''});
+        }
+        let {mediatype, generatortype} = reqbody;
+        if (mediatype.toLowerCase() === 'a' || mediatype.toLowerCase() === 'audio') {
+            mediatype = 'A';
+        } else if (mediatype.toLowerCase() === 'v' || mediatype.toLowerCase() === 'video') {
+            mediatype = 'V'
+        } else {
+            return res.status(400).send({message: 'Invalid Media Type'});
+        }
+
+        // Ingestion
+        if (Object.keys(reqbody).indexOf('presignedURLs') >= 0) {
             // List of Pre-signed URLs
-            let listURLs = reqbody['blobs'];
-            for (const b of listURLs) {
-                request(b, {json: true}, (err, resp, body) => {
-                    if (err) return console.log(err);
-                    ingestionExecute(body, mediatype, generatortype);
-                });
+            let fileresponselist: IngestionResolve[] = [];
+            if (reqbody['presignedURLs'].length > 0) {
+                for (const url of reqbody['presignedURLs']) {
+                    request(url, {json: true}, async (err, resp, body) => {
+                        if (err) return res.status(400).send({message: err});
+                        if (!body['metadata']) {
+                            return res.status(200).send({
+                                message: 'JSON must have a key named \'metadata\' which will contain' +
+                                    ' the actual metadata to be ingested'
+                            })
+                        }
+                        const fileResponse = await ingestionExecute(body['metadata'], mediatype, generatortype.toLowerCase());
+                        fileresponselist.push(fileResponse);
+                        reqbody['presignedURLs'].splice(reqbody['presignedURLs'].indexOf(url), 1);
+                        if (reqbody['presignedURLs'].length === 0) {
+                            return res.status(200).send({message: 'success', response: fileresponselist});
+                        }
+                    });
+                }
+            } else {
+                return res.status(200).send({message: 'Empty List of Pre-signed URLs'})
             }
         } else {
             // Pure JSON
-            ingestionExecute(reqbody, mediatype, generatortype);
+            if (!reqbody['metadata']) {
+                return res.status(200).send({
+                    message: 'JSON must have a key named \'metadata\' which will contain' +
+                        ' the actual metadata to be ingested'
+                })
+            }
+            const fileresponse = await ingestionExecute(reqbody['metadata'], mediatype, generatortype.tolowerCase());
+            return res.status(200).send({message: 'success', response: fileresponse});
         }
-        // else if (headers['content-type'].includes('form')) {
-        //     let files = req.files;
-        //     Object.keys(files).forEach(key => {
-        //         let file = files[key];
-        //         // @ts-ignore
-        //         const data = JSON.parse(file['data']);
-        //         ingestionExecute(data, mediatype, generatortype);
-        //     });
-        // }
-    } else if (mediatype == 'V') {
-        // Pure JSON
-        if (headers['content-type'].includes('json')) {
-            ingestionExecute(reqbody, mediatype, generatortype);
-        }
+    } else {
+        return res.status(400).send({message: 'Invalid Request Body Format'});
     }
-    res.status(200).send({message: 'success'});
 };
 
 export async function ingestionController(req: Request, res: Response) {

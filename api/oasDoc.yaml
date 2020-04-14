@@ -9,8 +9,8 @@ paths:
   /api/ingestmetadata:
     post:
       description: |
-        Ingest metadata through a list of pre-signed URLs or a JSON output from a generator<br>If using pre-signed URLs - provide mediatype and
-        blobs (list of URLs)<br>If using JSON output from a generator - that JSON output must be the request body
+        Ingest metadata through a list of pre-signed URLs or a JSON output from a generator<br>If using pre-signed URLs - provide mediatype,
+        generatortype and presignedURLs (list of URLs)<br>If using JSON output from a generator - that JSON output must be the request body
       summary: Ingestion API
       x-swagger-router-controller: apiRoutes
       operationId: ingestionRoute
@@ -24,7 +24,8 @@ paths:
                 value: |-
                   {
                   "mediatype": "A",
-                  "blobs":[
+                  "generatortype": "transcription",
+                  "presignedURLs":[
                       "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2017_260_00_00_GMT_trunk_gateway_fxo_8_5_6246405270325927.json?st=2020-04-10T23%3A41%3A01Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=Vy2jcrUsKXHXo2gblXVgf%2BDzD8yd%2FBaUeOSn2mtJRL8%3D",
                       "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2019_05_04_00_00_49_Ch32.json?st=2020-04-10T23%3A41%3A45Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=uKGJkUBhiP3likDr8L7XknAqSj0g3KRbt5DngNzsMr4%3D",
                       "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/clip2.json?st=2020-04-10T23%3A42%3A04Z&se=2020-04-30T23%3A42%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=WbE9DWssifU%2FShfrP%2Ff5OOfbbAiRK2hpiSx%2Bjtjf9YI%3D",
@@ -32,7 +33,7 @@ paths:
                   }
       responses:
         '200':
-          description: Auto generated using Swagger Inspector
+          description: Success Response
           content:
             application/json:
               schema:
@@ -41,6 +42,22 @@ paths:
                   message:
                     type: string
                     example: 'Success'
+                  response:
+                    type: object
+                    example: |
+                      {'key': 'value'}
+                required:
+                  - message
+        '400':
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Missing Key <Key Name>'
       servers:
         - url: 'http://localhost:5000'
     servers:
@@ -65,7 +82,7 @@ paths:
           example: 1.0
       responses:
         '200':
-          description: Auto generated using Swagger Inspector
+          description: Success Response
           content:
             application/json:
               schema:
@@ -74,6 +91,22 @@ paths:
                   message:
                     type: string
                     example: 'Success'
+                  response:
+                    type: object
+                    example: |
+                      {'key': 'value'}
+                required:
+                  - message
+        '400':
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Missing Key <Key Name>'
       servers:
         - url: 'http://localhost:5000'
     servers:
@@ -98,7 +131,7 @@ paths:
           example: 1.0
       responses:
         '200':
-          description: Auto generated using Swagger Inspector
+          description: Success Response
           content:
             application/json:
               schema:
@@ -107,6 +140,22 @@ paths:
                   message:
                     type: string
                     example: 'Success'
+                  response:
+                    type: object
+                    example: |
+                      {'key': 'value'}
+                required:
+                  - message
+        '400':
+          description: Error Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Missing Key <Key Name>'
       servers:
         - url: 'http://localhost:5000'
     servers:
@@ -118,23 +167,28 @@ components:
       properties:
         message:
           type: string
+        response:
+          type: object
       required:
         - message
     Error:
       type: object
       properties:
         message:
-          type: string
+          type: object
       required:
         - message
     Ingestion:
       type: object
       properties:
-        blobs:
+        presignedURLs:
           type: array
           items:
             type: string
         mediatype:
           type: string
+        generatortype:
+          type: string
       required:
         - mediatype
+        - generatortype

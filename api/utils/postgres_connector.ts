@@ -24,6 +24,11 @@ export const queryDB = function (input: sqlToDBParams) {
             if (input.callback) input.callback(result);
         }
     ).catch(err => {
+        sqlToDB('ROLLBACK', []).then(
+            result => {
+                console.log(result);
+            }
+        );
         throw new Error(err)
     });
 };
@@ -39,6 +44,7 @@ export const sqlToDB = async (sql: string, data: string[]) => {
         return pool.query(sql, data)
 
     } catch (error) {
+        await pool.query('ROLLBACK');
         throw new Error(error.message);
     }
 };

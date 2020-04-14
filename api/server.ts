@@ -28,6 +28,7 @@ var options_object = {
     controllers: `${__dirname}/routes`,
     checkControllers: true,
     strict: false,
+    loglevel: 'warning',
     docs: {
         apiDocs: '/api-docs',
         apiDocsPrefix: '',
