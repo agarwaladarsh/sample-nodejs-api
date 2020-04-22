@@ -11,7 +11,7 @@ export const queryjsonblob = `
     select *
     from aggregated_metadata
     where inputfilename like $1
-      and inputtype like $2
+      and mediatype like $2
       and generatortype like $3
       and version = $4
 `;
@@ -22,45 +22,76 @@ export const updatejsonblob = `
     update aggregated_metadata
     set metadata = $5
     where inputfilename like $1
-      and inputtype like $2
+      and mediatype like $2
       and generatortype like $3
       and version = $4
 `;
 export const genericAudioMetadataQuery = `
-    select *
-    from aggregated_metadata
-    where inputtype like concat('%', $1::text, '%')
-      and generatortype like concat('%', $2::text, '%')
-      and version like concat('%', $3::text, '%')
+    select distinct am.inputfilename, am.mediatype, am.generatortype, am.version, am.ingested_date_time, am.metadata
+    from aggregated_metadata am,
+         jsonb_array_elements(am.metadata -> 'result') obj
+    where am.mediatype like 'A'
+`;
+export const genericAudioFileQuery = `
+    select distinct inputfilename, mediatype, generatortype, version, ingested_date_time
+    from aggregated_metadata am,
+         jsonb_array_elements(am.metadata -> 'result') obj
+    where am.mediatype like 'A'
+`;
+export const genericAudioJSONFieldTypeCheck = `
+    select distinct jsonb_typeof(obj -> $1 -> $2)
+    from aggregated_metadata am,
+         jsonb_array_elements(am.metadata -> 'result') obj
+    where am.mediatype like 'A'
+      and am.generatortype like $1
+    limit 1;
 `;
 
 /***** Video-Specific Queries *****/
-export const updateMetaDetails = `
-    SELECT update_meta_details($1, $2, $3)
+
+// update aggregated_metadata 
+// set classfrequencies = classfrequencies::jsonb || $3::jsonb
+// where
+// mediatype like $1 and
+// jobdetails->>'jobID' like $2
+export const updateClassFrequencies = `
+    SELECT update_class_frequencies($1, $2, $3)
 `;
 // Video version of updatejsonblob()
 export const mergeJsonBlob = `
-    update aggregated_metadata
+    update aggregated_metadata 
     set metadata = jsonb_deep_merge(metadata, $5::jsonb)
-    where inputfilename like $1
-      and inputtype like $2
-      and generatortype like $3
-      and version = $4
+    where 
+    inputfilename like $1 and 
+    mediatype like $2 and 
+    generatortype like $3 and 
+    version = $4
 `;
 // Return jobIDs by either generatortype, model_name, or classnum
 // jobIDs accessed by results[0].jobids
 export const videoQueryForJobID = `
-    select coalesce(jsonb_agg(jobdetails -> 'jobID'), '[]'::jsonb) as jobIDs
+    select coalesce(jsonb_agg(jobdetails->'jobID'), '[]'::jsonb) as jobIDs
     from aggregated_metadata
-    where inputtype like $1
+    where 
+    mediatype like $1
 `;
 // Return entire row entries by jobID
 export const videoQueryByJobID = `
-    select *
-    from aggregated_metadata
-    where inputtype like $1
-      and jobdetails ->> 'jobID' like $2
+    select * from aggregated_metadata
+    where 
+    mediatype like $1 and
+    jobdetails->>'jobID' like $2
 `;
+// Returns the frequency of class for each jobID
+// Key: jobID, Value: Frequency
+export const videoQueryByClass = `
+    select coalesce(jsonb_object_agg(jobdetails->>'jobID', classfrequencies->$2), '[]'::jsonb) as classfrequencies
+    from aggregated_metadata
+    where 
+    mediatype like $1 and
+    classfrequencies->$2 is not null
+`;
+
 export const psql_init_functions = `
     /*
      * Helper function for mergejsonblob()
@@ -85,32 +116,35 @@ export const psql_init_functions = `
      * Helper function for updateMetadataDetails()
      * Update class frequencies based on recently ingested blob
      */    
-    create or replace function update_meta_details(mediatype text, jobID text, blob jsonb)
+    create or replace function update_class_frequencies(media_type text, jobID text, count jsonb)
     returns void language plpgsql as $$
     declare 
-        _key   text;
+        _class   text;
+        _count   int;
     begin
         -- Obtain all classes in ingested blob
-        for _key in
-            select jsonb_array_elements(jsonb_array_elements(n.blob)) from (
-                select ((t#>>'{}')::jsonb->>'classes')::jsonb as blob from (
-                    select i.v->jsonb_object_keys(i.v) as t 
-                    from jsonb_each($3) as i(k,v)
-                ) m
-            ) n
+        for _class, _count in select * from jsonb_each($3)
         loop
-            -- Increment class frequencies
+            -- Update class frequencies for each unique class
             update aggregated_metadata
-            set metadatadetails = jsonb_set(metadatadetails::jsonb, 
-                                            array[_key], 
-                                            (coalesce(metadatadetails->>_key,'0')::int + 1)::text::jsonb)
+            set classfrequencies = jsonb_set(classfrequencies::jsonb, 
+                                            array[_class], 
+                                            (coalesce(classfrequencies->>_class,'0')::int + _count)::text::jsonb)
             where
-            inputtype like $1 and
+            mediatype like $1 and
             jobdetails->>'jobID' like $2;
         end loop;
     end
     $$;
 `;
+
+// Not used: isolate each classnum
+// jsonb_array_elements(jsonb_array_elements(n.blob)) from (
+//     select ((t#>>'{}')::jsonb->>'classes')::jsonb as blob from (
+//         select i.v->jsonb_object_keys(i.v) as t 
+//         from jsonb_each($3) as i(k,v)
+//     ) m
+// ) n
 
 // Not used: query for classnum
 // `
@@ -127,10 +161,3 @@ export const psql_init_functions = `
 //     )
 // )
 // `
-
-export const queryAudioJSONArray = `
-    select *
-    from aggregated_metadata am,
-         jsonb_array_elements(am.metadata -> 'result') obj
-    where (obj -> 'characterization' -> 'is_stereo')::boolean = true;
-`;

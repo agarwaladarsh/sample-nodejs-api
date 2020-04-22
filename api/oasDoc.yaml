@@ -4,7 +4,7 @@ info:
   description: Ingestion API - to ingest audio metadata through pre-signed URLs/JSON<br>Query API - to query existing metadata with set of filters
   version: '0.1'
 servers:
-  - url: 'http://localhost:5000'
+  - url: 'http://10.5.221.43:5000'
 paths:
   /api/ingestmetadata:
     post:
@@ -19,18 +19,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Ingestion'
-            example:
-              '0':
-                value: |-
-                  {
-                  "mediatype": "A",
-                  "generatortype": "transcription",
-                  "presignedURLs":[
-                      "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2017_260_00_00_GMT_trunk_gateway_fxo_8_5_6246405270325927.json?st=2020-04-10T23%3A41%3A01Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=Vy2jcrUsKXHXo2gblXVgf%2BDzD8yd%2FBaUeOSn2mtJRL8%3D",
-                      "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2019_05_04_00_00_49_Ch32.json?st=2020-04-10T23%3A41%3A45Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=uKGJkUBhiP3likDr8L7XknAqSj0g3KRbt5DngNzsMr4%3D",
-                      "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/clip2.json?st=2020-04-10T23%3A42%3A04Z&se=2020-04-30T23%3A42%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=WbE9DWssifU%2FShfrP%2Ff5OOfbbAiRK2hpiSx%2Bjtjf9YI%3D",
-                      ]
-                  }
+            example: |-
+              {
+              "mediatype": "A",
+              "generatortype": "transcription",
+              "presignedURLs":[
+                  "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2017_260_00_00_GMT_trunk_gateway_fxo_8_5_6246405270325927.json?st=2020-04-10T23%3A41%3A01Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=Vy2jcrUsKXHXo2gblXVgf%2BDzD8yd%2FBaUeOSn2mtJRL8%3D",
+                  "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/2019_05_04_00_00_49_Ch32.json?st=2020-04-10T23%3A41%3A45Z&se=2020-04-30T23%3A41%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=uKGJkUBhiP3likDr8L7XknAqSj0g3KRbt5DngNzsMr4%3D",
+                  "https://sandboxdata002.blob.core.windows.net/com-msi-cto-testing-datasets/sample_audio_files/transcriptions/clip2.json?st=2020-04-10T23%3A42%3A04Z&se=2020-04-30T23%3A42%3A00Z&sp=rl&sv=2018-03-28&sr=b&sig=WbE9DWssifU%2FShfrP%2Ff5OOfbbAiRK2hpiSx%2Bjtjf9YI%3D"
+                  ]
+              }
       responses:
         '200':
           description: Success Response
@@ -59,27 +57,37 @@ paths:
                     type: string
                     example: 'Missing Key <Key Name>'
       servers:
-        - url: 'http://localhost:5000'
+        - url: 'http://10.5.221.43:5000'
     servers:
-      - url: 'http://localhost:5000'
+      - url: 'http://10.5.221.43:5000'
   /api/querymetadata/audio:
     get:
       description: Query API for aggregated metadata<br>Path /audio for audio queries<br>Path /video for video queries<br>Important Query Parameters - generatortype<br>Optional Query Parameters - Version
       summary: Query API - Audio Metadata
       x-swagger-router-controller: apiRoutes
-      operationId: queryRoute
+      operationId: queryAudioRoute
       parameters:
         - name: generatortype
           in: query
           required: true
           schema:
             type: string
-          example: classification/transcription/characterization
+          example: classification
         - name: version
           in: query
           schema:
             type: string
           example: 1.0
+        - name: return_raw_metadata
+          in: query
+          schema:
+            type: string
+          example: false
+        - name: filename
+          in: query
+          schema:
+            type: string
+          example: file1.wav
       responses:
         '200':
           description: Success Response
@@ -108,15 +116,15 @@ paths:
                     type: string
                     example: 'Missing Key <Key Name>'
       servers:
-        - url: 'http://localhost:5000'
+        - url: 'http://10.5.221.43:5000'
     servers:
-      - url: 'http://localhost:5000'
-  /api/querymetadata/video:
+      - url: 'http://10.5.221.43:5000'
+  /api/querymetadata/video/:jobID?:
     get:
       description: Query API for aggregated metadata<br>Path /audio for audio queries<br>Path /video for video queries<br>Important Query Parameters - generatortype<br>Optional Query Parameters - Version
       summary: Query API - Video Metadata
       x-swagger-router-controller: apiRoutes
-      operationId: queryRoute
+      operationId: queryVideoRoute
       parameters:
         - name: generatortype
           in: query
@@ -157,9 +165,9 @@ paths:
                     type: string
                     example: 'Missing Key <Key Name>'
       servers:
-        - url: 'http://localhost:5000'
+        - url: 'http://10.5.221.43:5000'
     servers:
-      - url: 'http://localhost:5000'
+      - url: 'http://10.5.221.43:5000'
 components:
   schemas:
     Success:
